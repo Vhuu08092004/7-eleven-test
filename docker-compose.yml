@@ -41,14 +41,12 @@ services:
       DB_NAME: seveneleven
       DB_USERNAME: postgres
       DB_PASSWORD: postgres
-      REDIS_HOST: redis
-      REDIS_PORT: 6379
+      REDIS_ENABLED: false
+      CACHE_TYPE: simple
     ports:
       - "8080:8080"
     depends_on:
       postgres:
-        condition: service_healthy
-      redis:
         condition: service_healthy
 
   frontend:

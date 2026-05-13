@@ -6,7 +6,7 @@ INSERT INTO products (name, description, price, stock, image_url, created_at, up
 ('Red Bull', '250ml energy drink - gives you wings', 25000, 50, 'https://images.unsplash.com/photo-1527960471264-932f39eb5846?w=400', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, FALSE),
 ('Aquafina Water', '500ml purified drinking water', 7000, 200, 'https://images.unsplash.com/photo-1548839140-29a749e1cf4d?w=400', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, FALSE),
 ('Nescafe Coffee', '200ml canned coffee - rich and smooth', 18000, 60, 'https://images.unsplash.com/photo-1514432324607-a09d9b4aefdd?w=400', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, FALSE),
-("Lay's Chips", '85g potato chips - classic salted', 22000, 70, 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, FALSE),
+('Lay'' Chips', '85g potato chips - classic salted', 22000, 70, 'https://images.unsplash.com/photo-1566478989037-eec170784d0b?w=400', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, FALSE),
 ('Oreo Cookies', '133g chocolate sandwich cookies', 25000, 90, 'https://images.unsplash.com/photo-1558961363-fa8fdf82db35?w=400', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, FALSE),
 ('Sandwich', 'Fresh chicken sandwich - ready to eat', 35000, 30, 'https://images.unsplash.com/photo-1528735602780-2552fd46c7af?w=400', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, FALSE),
 ('Instant Noodles', '85g spicy shrimp flavored noodles', 12000, 150, 'https://images.unsplash.com/photo-1612929633738-8fe44f7ec841?w=400', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, FALSE),

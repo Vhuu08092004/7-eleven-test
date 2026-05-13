@@ -1,6 +1,5 @@
--- V5: Insert default users (password is BCrypt encoded)
--- Admin: Admin@123 (BCrypt hash)
--- User: User@123 (BCrypt hash)
-INSERT INTO users (email, password, role, created_at, updated_at, is_deleted) VALUES
-('admin@7eleven.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.S8G/4hOiLHEJ7qQ3K', 'ROLE_ADMIN', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, FALSE),
-('user@7eleven.com', '$2a$10$N9qo8uLOickgx2ZMRZoMyeIjZRGdjGj/n3.S8G/4hOiLHEJ7qQ3K', 'ROLE_USER', CURRENT_TIMESTAMP, CURRENT_TIMESTAMP, FALSE);
+-- V5: Users are created by DataLoader.java at runtime using PasswordEncoder
+-- This ensures correct BCrypt encoding of passwords
+-- Default credentials:
+--   Admin: admin@7eleven.com / Admin@123
+--   User:  user@7eleven.com / User@123

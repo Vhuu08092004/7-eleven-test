@@ -5,9 +5,9 @@ import com.seveneleven.dto.auth.LoginResponse;
 import com.seveneleven.dto.auth.RefreshTokenRequest;
 import com.seveneleven.entity.User;
 import com.seveneleven.exception.UnauthorizedException;
-import com.seveneleven.repository.RefreshTokenRepository;
 import com.seveneleven.repository.UserRepository;
 import com.seveneleven.security.JwtTokenProvider;
+import com.seveneleven.service.token.TokenStore;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -34,7 +34,7 @@ class AuthServiceTest {
     private UserRepository userRepository;
 
     @Mock
-    private RefreshTokenRepository refreshTokenRepository;
+    private TokenStore tokenStore;
 
     @Mock
     private JwtTokenProvider tokenProvider;
@@ -65,7 +65,7 @@ class AuthServiceTest {
         when(tokenProvider.generateAccessToken(authentication)).thenReturn("access_token");
         when(userRepository.findByEmailAndIsDeletedFalse("user@7eleven.com"))
                 .thenReturn(Optional.of(testUser));
-        doNothing().when(refreshTokenRepository).save(any(), any(), anyLong());
+        doNothing().when(tokenStore).save(any(), any(), anyInt());
 
         LoginResponse response = authService.login(request);
 
@@ -73,7 +73,7 @@ class AuthServiceTest {
         assertEquals("access_token", response.getAccessToken());
         assertNotNull(response.getRefreshToken());
         verify(authenticationManager).authenticate(any());
-        verify(refreshTokenRepository).save(any(), eq(1L), eq(7L));
+        verify(tokenStore).save(any(), eq(1L), eq(7));
     }
 
     @Test
@@ -91,20 +91,20 @@ class AuthServiceTest {
         String oldToken = "old_refresh_token";
         RefreshTokenRequest request = new RefreshTokenRequest(oldToken);
 
-        when(refreshTokenRepository.exists(oldToken)).thenReturn(true);
-        when(refreshTokenRepository.findUserIdByToken(oldToken)).thenReturn(1L);
+        when(tokenStore.exists(oldToken)).thenReturn(true);
+        when(tokenStore.findUserIdByToken(oldToken)).thenReturn(Optional.of(1L));
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(tokenProvider.generateAccessToken(testUser.getEmail())).thenReturn("new_access_token");
-        doNothing().when(refreshTokenRepository).delete(oldToken);
-        doNothing().when(refreshTokenRepository).save(any(), any(), anyLong());
+        doNothing().when(tokenStore).delete(oldToken);
+        doNothing().when(tokenStore).save(any(), any(), anyInt());
 
         LoginResponse response = authService.refreshToken(request);
 
         assertNotNull(response);
         assertEquals("new_access_token", response.getAccessToken());
         assertNotNull(response.getRefreshToken());
-        verify(refreshTokenRepository).delete(oldToken);
-        verify(refreshTokenRepository).save(any(), eq(1L), eq(7L));
+        verify(tokenStore).delete(oldToken);
+        verify(tokenStore).save(any(), eq(1L), eq(7));
     }
 
     @Test
@@ -112,7 +112,7 @@ class AuthServiceTest {
         String invalidToken = "invalid_token";
         RefreshTokenRequest request = new RefreshTokenRequest(invalidToken);
 
-        when(refreshTokenRepository.exists(invalidToken)).thenReturn(false);
+        when(tokenStore.exists(invalidToken)).thenReturn(false);
 
         assertThrows(UnauthorizedException.class, () -> authService.refreshToken(request));
     }

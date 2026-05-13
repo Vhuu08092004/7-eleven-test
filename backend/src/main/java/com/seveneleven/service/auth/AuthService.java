@@ -4,9 +4,9 @@ import com.seveneleven.dto.auth.*;
 import com.seveneleven.entity.User;
 import com.seveneleven.exception.BadRequestException;
 import com.seveneleven.exception.UnauthorizedException;
-import com.seveneleven.repository.RefreshTokenRepository;
 import com.seveneleven.repository.UserRepository;
 import com.seveneleven.security.JwtTokenProvider;
+import com.seveneleven.service.token.TokenStore;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
@@ -26,7 +26,7 @@ public class AuthService {
 
     private final AuthenticationManager authenticationManager;
     private final UserRepository userRepository;
-    private final RefreshTokenRepository refreshTokenRepository;
+    private final TokenStore tokenStore;
     private final JwtTokenProvider tokenProvider;
 
     @Value("${jwt.refresh-token-expiration:604800000}")
@@ -46,7 +46,7 @@ public class AuthService {
         User user = userRepository.findByEmailAndIsDeletedFalse(request.getEmail())
                 .orElseThrow(() -> new UnauthorizedException("User not found"));
 
-        refreshTokenRepository.save(refreshToken, user.getId(), 7);
+        tokenStore.save(refreshToken, user.getId(), 7);
 
         log.info("User logged in successfully: {}", request.getEmail());
 
@@ -60,20 +60,21 @@ public class AuthService {
     public LoginResponse refreshToken(RefreshTokenRequest request) {
         String oldToken = request.getRefreshToken();
 
-        if (!refreshTokenRepository.exists(oldToken)) {
+        if (!tokenStore.exists(oldToken)) {
             throw new UnauthorizedException("Invalid refresh token");
         }
 
-        Long userId = refreshTokenRepository.findUserIdByToken(oldToken);
+        Long userId = tokenStore.findUserIdByToken(oldToken)
+                .orElseThrow(() -> new UnauthorizedException("Invalid refresh token"));
         User user = userRepository.findById(userId)
                 .orElseThrow(() -> new UnauthorizedException("User not found"));
 
-        refreshTokenRepository.delete(oldToken);
+        tokenStore.delete(oldToken);
 
         String newAccessToken = tokenProvider.generateAccessToken(user.getEmail());
         String newRefreshToken = UUID.randomUUID().toString();
 
-        refreshTokenRepository.save(newRefreshToken, user.getId(), 7);
+        tokenStore.save(newRefreshToken, user.getId(), 7);
 
         log.info("Token refreshed for user: {}", user.getEmail());
 
