@@ -5,7 +5,7 @@ services:
   # ========================
   # POSTGRESQL DATABASE
   # ========================
-  - type: psql
+  - type: postgres
     name: seven-eleven-db
     plan: free
     databaseName: seveneleven
