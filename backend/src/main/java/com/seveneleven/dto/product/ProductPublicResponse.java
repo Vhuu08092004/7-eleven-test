@@ -3,6 +3,7 @@ package com.seveneleven.dto.product;
 import com.seveneleven.entity.Product;
 import lombok.*;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.Instant;
 
@@ -11,7 +12,8 @@ import java.time.Instant;
 @NoArgsConstructor
 @AllArgsConstructor
 @Builder
-public class ProductPublicResponse {
+public class ProductPublicResponse implements Serializable {
+    private static final long serialVersionUID = 1L;
     private Long id;
     private String name;
     private String description;

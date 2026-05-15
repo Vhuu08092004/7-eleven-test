@@ -5,9 +5,9 @@ import com.seveneleven.dto.product.ProductPublicResponse;
 import com.seveneleven.dto.product.ProductRequest;
 import com.seveneleven.dto.product.ProductResponse;
 import com.seveneleven.entity.Product;
-import com.seveneleven.exception.BadRequestException;
 import com.seveneleven.exception.ResourceNotFoundException;
 import com.seveneleven.repository.ProductRepository;
+import com.seveneleven.service.tempfile.TempFileService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.cache.annotation.CacheEvict;
@@ -20,6 +20,7 @@ import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.util.List;
+import java.util.UUID;
 import java.util.stream.Collectors;
 
 @Slf4j
@@ -28,6 +29,7 @@ import java.util.stream.Collectors;
 public class ProductService {
 
     private final ProductRepository productRepository;
+    private final TempFileService tempFileService;
 
     @Cacheable(value = "products", key = "#page + '-' + #size + '-' + #keyword")
     @Transactional(readOnly = true)
@@ -69,7 +71,7 @@ public class ProductService {
     @Transactional(readOnly = true)
     public PageResponse<ProductResponse> getProducts(int page, int size, String keyword) {
         log.debug("Fetching products - page: {}, size: {}, keyword: {}", page, size, keyword);
-        
+
         Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
         Page<Product> productPage;
 
@@ -105,12 +107,14 @@ public class ProductService {
     @CacheEvict(value = {"products", "product"}, allEntries = true)
     @Transactional
     public ProductResponse createProduct(ProductRequest request) {
+        String imageUrl = resolveImageUrl(request);
+
         Product product = Product.builder()
                 .name(request.getName())
                 .description(request.getDescription())
                 .price(request.getPrice())
                 .stock(request.getStock())
-                .imageUrl(request.getImageUrl())
+                .imageUrl(imageUrl)
                 .build();
 
         Product saved = productRepository.save(product);
@@ -124,15 +128,42 @@ public class ProductService {
         Product product = productRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", id));
 
+        String imageUrl = resolveImageUrl(request);
+
         product.setName(request.getName());
         product.setDescription(request.getDescription());
         product.setPrice(request.getPrice());
         product.setStock(request.getStock());
-        product.setImageUrl(request.getImageUrl());
+        product.setImageUrl(imageUrl);
 
         Product saved = productRepository.save(product);
         log.info("Product updated: {}", saved.getId());
         return ProductResponse.fromEntity(saved);
+    }
+
+    /**
+     * Resolve the final imageUrl for a product. If the request contains a temp file key,
+     * the file is promoted from temp storage to permanent storage. Otherwise, the existing
+     * imageUrl from the request is used as-is (e.g., for URLs pointing to existing files).
+     */
+    private String resolveImageUrl(ProductRequest request) {
+        String imageUrl = request.getImageUrl();
+        String fileKey = request.getImageFileKey();
+
+        if (fileKey != null && !fileKey.isBlank()) {
+            String extension = getExtensionFromFilename(imageUrl);
+            String finalFilename = UUID.randomUUID().toString() + extension;
+            return tempFileService.promoteTempFile(fileKey, "uploads/products", finalFilename);
+        }
+
+        return imageUrl;
+    }
+
+    private String getExtensionFromFilename(String filename) {
+        if (filename == null || filename.isBlank()) return "";
+        int dotIndex = filename.lastIndexOf('.');
+        if (dotIndex == -1) return "";
+        return filename.substring(dotIndex);
     }
 
     @CacheEvict(value = {"products", "product"}, allEntries = true)
@@ -140,7 +171,7 @@ public class ProductService {
     public void deleteProduct(Long id) {
         Product product = productRepository.findByIdAndIsDeletedFalse(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Product", id));
-        
+
         product.setIsDeleted(true);
         productRepository.save(product);
         log.info("Product soft deleted: {}", id);

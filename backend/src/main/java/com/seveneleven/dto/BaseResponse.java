@@ -4,13 +4,16 @@ import com.fasterxml.jackson.annotation.JsonInclude;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
+import java.io.Serializable;
+
 @Getter
 @Setter
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
 @JsonInclude(JsonInclude.Include.NON_NULL)
-public class BaseResponse<T> {
+public class BaseResponse<T> implements Serializable {
+    private static final long serialVersionUID = 1L;
     private boolean success;
     private String message;
     private String traceId;

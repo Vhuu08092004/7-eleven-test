@@ -4,6 +4,7 @@ import com.seveneleven.entity.Product;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
+import java.io.Serializable;
 import java.math.BigDecimal;
 import java.time.Instant;
 
@@ -12,7 +13,8 @@ import java.time.Instant;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class ProductResponse {
+public class ProductResponse implements Serializable {
+    private static final long serialVersionUID = 1L;
     private Long id;
     private String name;
     private String description;

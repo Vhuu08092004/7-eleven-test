@@ -3,6 +3,7 @@ package com.seveneleven.dto;
 import lombok.*;
 import lombok.experimental.SuperBuilder;
 
+import java.io.Serializable;
 import java.util.List;
 
 @Getter
@@ -10,7 +11,9 @@ import java.util.List;
 @SuperBuilder
 @NoArgsConstructor
 @AllArgsConstructor
-public class PageResponse<T> {
+public class PageResponse<T> implements Serializable {
+    private static final long serialVersionUID = 1L;
+
     private List<T> content;
     private int page;
     private int size;
