@@ -7,6 +7,7 @@ import OrderManagement from './pages/admin/OrderManagement'
 import UserLayout from './components/layout/UserLayout'
 import ProductList from './pages/user/ProductList'
 import ShoppingCart from './pages/user/ShoppingCart'
+import OrderHistory from './pages/user/OrderHistory'
 import { Loader2 } from 'lucide-react'
 
 function ProtectedRoute({ children, allowedRole }) {
@@ -57,6 +58,7 @@ function AppRoutes() {
         <Route index element={<Navigate to="/products" replace />} />
         <Route path="products" element={<ProductList />} />
         <Route path="cart" element={<ShoppingCart />} />
+        <Route path="orders" element={<OrderHistory />} />
       </Route>
 
       <Route path="*" element={<Navigate to="/" replace />} />

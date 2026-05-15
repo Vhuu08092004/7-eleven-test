@@ -1,71 +1,79 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
-import { orderService } from '../../services'
+import { cartService, orderService } from '../../services'
+import { getImageUrl } from '../../utils'
 import { Loader2, Minus, Plus, Trash2, ShoppingBag } from 'lucide-react'
 
 export default function ShoppingCart() {
-  const [cart, setCart] = useState({})
+  const [cartData, setCartData] = useState({ items: [], totalItems: 0, totalPrice: 0 })
+  const [loading, setLoading] = useState(true)
   const [ordering, setOrdering] = useState(false)
+  const [updating, setUpdating] = useState(null)
   const navigate = useNavigate()
 
-  useEffect(() => {
-    const savedCart = localStorage.getItem('cart')
-    if (savedCart) {
-      setCart(JSON.parse(savedCart))
+  const fetchCart = useCallback(async () => {
+    try {
+      setLoading(true)
+      const res = await cartService.getCart()
+      setCartData(res.data.data)
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to load cart')
+    } finally {
+      setLoading(false)
     }
   }, [])
 
   useEffect(() => {
-    localStorage.setItem('cart', JSON.stringify(cart))
-  }, [cart])
+    fetchCart()
+  }, [fetchCart])
 
-  const updateQuantity = (productId, delta) => {
-    setCart(prev => {
-      const current = prev[productId]
-      if (!current) return prev
-      const newQty = current.quantity + delta
-      if (newQty <= 0) {
-        const { [productId]: _, ...rest } = prev
-        return rest
-      }
-      return { ...prev, [productId]: { ...current, quantity: newQty } }
-    })
+  const updateQuantity = async (cartItemId, productId, currentQuantity, delta) => {
+    const newQuantity = currentQuantity + delta
+    if (newQuantity <= 0) {
+      await removeItem(cartItemId)
+      return
+    }
+
+    setUpdating(cartItemId)
+    try {
+      const res = await cartService.updateCartItem(cartItemId, productId, newQuantity)
+      setCartData(res.data.data)
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to update quantity')
+    } finally {
+      setUpdating(null)
+    }
   }
 
-  const removeItem = (productId) => {
-    setCart(prev => {
-      const { [productId]: _, ...rest } = prev
-      return rest
-    })
-    toast.success('Item removed from cart')
-  }
-
-  const getCartTotal = () => {
-    return Object.values(cart).reduce((sum, item) => sum + (item.price * item.quantity), 0)
-  }
-
-  const getCartCount = () => {
-    return Object.values(cart).reduce((sum, item) => sum + item.quantity, 0)
+  const removeItem = async (cartItemId) => {
+    setUpdating(cartItemId)
+    try {
+      const res = await cartService.removeFromCart(cartItemId)
+      setCartData(res.data.data)
+      toast.success('Item removed from cart')
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to remove item')
+    } finally {
+      setUpdating(null)
+    }
   }
 
   const placeOrder = async () => {
-    if (Object.keys(cart).length === 0) {
+    if (cartData.items.length === 0) {
       toast.error('Cart is empty')
       return
     }
 
     setOrdering(true)
     try {
-      const orderData = {
-        items: Object.values(cart).map(item => ({
-          productId: item.id,
-          quantity: item.quantity
-        }))
-      }
-      await orderService.create(orderData)
-      setCart({})
-      localStorage.removeItem('cart')
+      // This calls the backend which will:
+      // 1. Lock all product rows (sorted by ID to prevent deadlock)
+      // 2. Verify stock for all items
+      // 3. Deduct stock and create order
+      // 4. Clear the user's cart
+      await orderService.placeOrderFromCart()
+      setCartData({ items: [], totalItems: 0, totalPrice: 0 })
       toast.success('Order placed successfully!')
       navigate('/products')
     } catch (error) {
@@ -79,11 +87,19 @@ export default function ShoppingCart() {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price)
   }
 
+  if (loading) {
+    return (
+      <div className="flex justify-center items-center py-20">
+        <Loader2 className="animate-spin text-green-600" size={40} />
+      </div>
+    )
+  }
+
   return (
     <div className="max-w-2xl mx-auto">
       <h1 className="text-2xl font-bold text-gray-800 mb-6">Shopping Cart</h1>
 
-      {Object.keys(cart).length === 0 ? (
+      {cartData.items.length === 0 ? (
         <div className="text-center py-16 bg-white rounded-lg shadow">
           <ShoppingBag className="mx-auto text-gray-300 mb-4" size={64} />
           <p className="text-gray-500 mb-4">Your cart is empty</p>
@@ -97,40 +113,51 @@ export default function ShoppingCart() {
       ) : (
         <>
           <div className="bg-white rounded-lg shadow overflow-hidden">
-            {Object.values(cart).map((item) => (
+            {cartData.items.map((item) => (
               <div key={item.id} className="flex items-center p-4 border-b last:border-b-0">
-                {item.imageUrl ? (
-                  <img src={item.imageUrl} alt={item.name} className="w-16 h-16 object-cover rounded" />
+                {item.productImageUrl ? (
+                  <img
+                    src={getImageUrl(item.productImageUrl)}
+                    alt={item.productName}
+                    className="w-16 h-16 object-cover rounded"
+                  />
                 ) : (
                   <div className="w-16 h-16 bg-gray-100 rounded flex items-center justify-center">
                     <ShoppingBag className="text-gray-400" size={24} />
                   </div>
                 )}
                 <div className="flex-1 ml-4">
-                  <h3 className="font-medium text-gray-800">{item.name}</h3>
-                  <p className="text-green-600 font-semibold">{formatPrice(item.price)}</p>
+                  <h3 className="font-medium text-gray-800">{item.productName}</h3>
+                  <p className="text-green-600 font-semibold">{formatPrice(item.productPrice)}</p>
                 </div>
                 <div className="flex items-center space-x-2">
                   <button
-                    onClick={() => updateQuantity(item.id, -1)}
-                    className="p-1 bg-gray-100 rounded hover:bg-gray-200"
+                    onClick={() => updateQuantity(item.id, item.productId, item.quantity, -1)}
+                    disabled={updating === item.id}
+                    className="p-1 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50"
                   >
                     <Minus size={16} />
                   </button>
-                  <span className="w-8 text-center font-medium">{item.quantity}</span>
+                  {updating === item.id ? (
+                    <Loader2 className="animate-spin text-gray-400" size={16} />
+                  ) : (
+                    <span className="w-8 text-center font-medium">{item.quantity}</span>
+                  )}
                   <button
-                    onClick={() => updateQuantity(item.id, 1)}
-                    className="p-1 bg-gray-100 rounded hover:bg-gray-200"
+                    onClick={() => updateQuantity(item.id, item.productId, item.quantity, 1)}
+                    disabled={updating === item.id}
+                    className="p-1 bg-gray-100 rounded hover:bg-gray-200 disabled:opacity-50"
                   >
                     <Plus size={16} />
                   </button>
                 </div>
                 <div className="ml-4 text-right">
-                  <p className="font-semibold">{formatPrice(item.price * item.quantity)}</p>
+                  <p className="font-semibold">{formatPrice(item.subtotal)}</p>
                 </div>
                 <button
                   onClick={() => removeItem(item.id)}
-                  className="ml-4 text-red-500 hover:text-red-700"
+                  disabled={updating === item.id}
+                  className="ml-4 text-red-500 hover:text-red-700 disabled:opacity-50"
                 >
                   <Trash2 size={18} />
                 </button>
@@ -140,8 +167,8 @@ export default function ShoppingCart() {
 
           <div className="bg-white rounded-lg shadow mt-4 p-4">
             <div className="flex justify-between items-center mb-4">
-              <span className="text-lg">Total ({getCartCount()} items):</span>
-              <span className="text-2xl font-bold text-green-600">{formatPrice(getCartTotal())}</span>
+              <span className="text-lg">Total ({cartData.totalItems} items):</span>
+              <span className="text-2xl font-bold text-green-600">{formatPrice(cartData.totalPrice)}</span>
             </div>
             <button
               onClick={placeOrder}

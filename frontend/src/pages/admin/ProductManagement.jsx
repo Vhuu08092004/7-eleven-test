@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { toast } from 'sonner'
 import { productService } from '../../services'
-import { Plus, Search, Edit2, Trash2, Loader2, X, Image } from 'lucide-react'
+import { getImageUrl } from '../../utils'
+import { Plus, Search, Edit2, Trash2, Loader2, X, Image, Upload, Camera, Eye } from 'lucide-react'
 
 export default function ProductManagement() {
   const [products, setProducts] = useState([])
@@ -10,7 +11,9 @@ export default function ProductManagement() {
   const [page, setPage] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [modalOpen, setModalOpen] = useState(false)
+  const [viewModalOpen, setViewModalOpen] = useState(false)
   const [editingProduct, setEditingProduct] = useState(null)
+  const [viewingProduct, setViewingProduct] = useState(null)
   const [formData, setFormData] = useState({
     name: '',
     description: '',
@@ -18,6 +21,9 @@ export default function ProductManagement() {
     stock: '',
     imageUrl: ''
   })
+  const [imagePreview, setImagePreview] = useState('')
+  const [uploadingImage, setUploadingImage] = useState(false)
+  const fileInputRef = useRef(null)
   const [saving, setSaving] = useState(false)
   const [deleteId, setDeleteId] = useState(null)
 
@@ -44,6 +50,16 @@ export default function ProductManagement() {
     setSearch(e.target.value)
   }
 
+  const viewProduct = async (product) => {
+    try {
+      const res = await productService.getById(product.id)
+      setViewingProduct(res.data.data)
+      setViewModalOpen(true)
+    } catch (error) {
+      toast.error('Failed to load product details')
+    }
+  }
+
   const openModal = (product = null) => {
     if (product) {
       setEditingProduct(product)
@@ -54,11 +70,45 @@ export default function ProductManagement() {
         stock: product.stock,
         imageUrl: product.imageUrl || ''
       })
+      setImagePreview(getImageUrl(product.imageUrl || ''))
     } else {
       setEditingProduct(null)
       setFormData({ name: '', description: '', price: '', stock: '', imageUrl: '' })
+      setImagePreview('')
     }
     setModalOpen(true)
+  }
+
+  const handleImageSelect = async (e) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+
+    setUploadingImage(true)
+    const formDataUpload = new FormData()
+    formDataUpload.append('file', file)
+
+    try {
+      const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8080'
+      const response = await fetch(`${API_URL}/api/uploads/products`, {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('accessToken')}`
+        },
+        body: formDataUpload
+      })
+      const result = await response.json()
+      if (result.success) {
+        setFormData(prev => ({ ...prev, imageUrl: result.data }))
+        setImagePreview(`${API_URL}${result.data}`)
+        toast.success('Image uploaded successfully')
+      } else {
+        toast.error(result.message || 'Failed to upload image')
+      }
+    } catch (error) {
+      toast.error('Failed to upload image')
+    } finally {
+      setUploadingImage(false)
+    }
   }
 
   const handleSubmit = async (e) => {
@@ -152,7 +202,7 @@ export default function ProductManagement() {
                   <tr key={product.id} className="hover:bg-gray-50">
                     <td className="px-6 py-4">
                       {product.imageUrl ? (
-                        <img src={product.imageUrl} alt={product.name} className="w-12 h-12 rounded object-cover" />
+                        <img src={getImageUrl(product.imageUrl)} alt={product.name} className="w-12 h-12 rounded object-cover" />
                       ) : (
                         <div className="w-12 h-12 rounded bg-gray-100 flex items-center justify-center">
                           <Image className="text-gray-400" size={20} />
@@ -168,10 +218,13 @@ export default function ProductManagement() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex space-x-2">
-                        <button onClick={() => openModal(product)} className="text-blue-600 hover:text-blue-800">
+                        <button onClick={() => viewProduct(product)} className="text-gray-600 hover:text-gray-800" title="View">
+                          <Eye size={18} />
+                        </button>
+                        <button onClick={() => openModal(product)} className="text-blue-600 hover:text-blue-800" title="Edit">
                           <Edit2 size={18} />
                         </button>
-                        <button onClick={() => setDeleteId(product.id)} className="text-red-600 hover:text-red-800">
+                        <button onClick={() => setDeleteId(product.id)} className="text-red-600 hover:text-red-800" title="Delete">
                           <Trash2 size={18} />
                         </button>
                       </div>
@@ -204,10 +257,67 @@ export default function ProductManagement() {
         </>
       )}
 
+      {/* View Product Modal */}
+      {viewModalOpen && viewingProduct && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-lg p-6 w-full max-w-lg">
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">Product Details</h2>
+              <button onClick={() => setViewModalOpen(false)} className="text-gray-400 hover:text-gray-600">
+                <X size={24} />
+              </button>
+            </div>
+            <div className="space-y-4">
+              {viewingProduct.imageUrl ? (
+                <img src={getImageUrl(viewingProduct.imageUrl)} alt={viewingProduct.name} className="w-full h-64 object-contain rounded-lg bg-gray-100" />
+              ) : (
+                <div className="w-full h-64 bg-gray-100 rounded-lg flex items-center justify-center">
+                  <Image className="text-gray-400" size={64} />
+                </div>
+              )}
+              <div>
+                <h3 className="text-2xl font-bold text-gray-800">{viewingProduct.name}</h3>
+                <p className="text-gray-500 mt-1">{viewingProduct.description || 'No description'}</p>
+              </div>
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-sm text-gray-500">Price</p>
+                  <p className="text-xl font-bold text-green-600">{formatPrice(viewingProduct.price)}</p>
+                </div>
+                <div className="bg-gray-50 p-3 rounded-lg">
+                  <p className="text-sm text-gray-500">Stock</p>
+                  <p className={`text-xl font-bold ${viewingProduct.stock > 10 ? 'text-green-600' : viewingProduct.stock > 0 ? 'text-yellow-600' : 'text-red-600'}`}>
+                    {viewingProduct.stock}
+                  </p>
+                </div>
+              </div>
+              <div className="flex justify-end space-x-2 pt-4 border-t">
+                <button
+                  onClick={() => {
+                    setViewModalOpen(false)
+                    openModal(viewingProduct)
+                  }}
+                  className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 flex items-center space-x-2"
+                >
+                  <Edit2 size={16} />
+                  <span>Edit</span>
+                </button>
+                <button
+                  onClick={() => setViewModalOpen(false)}
+                  className="px-4 py-2 border rounded-lg hover:bg-gray-50"
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Create/Edit Modal */}
       {modalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg p-6 w-full max-w-md">
+          <div className="bg-white rounded-lg p-6 w-full max-w-md max-h-[90vh] overflow-y-auto">
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">{editingProduct ? 'Edit Product' : 'Add Product'}</h2>
               <button onClick={() => setModalOpen(false)} className="text-gray-400 hover:text-gray-600">
@@ -259,14 +369,49 @@ export default function ProductManagement() {
                 </div>
               </div>
               <div>
-                <label className="block text-sm font-medium text-gray-700 mb-1">Image URL</label>
-                <input
-                  type="url"
-                  value={formData.imageUrl}
-                  onChange={(e) => setFormData({ ...formData, imageUrl: e.target.value })}
-                  className="w-full px-3 py-2 border rounded-lg focus:ring-2 focus:ring-green-500 outline-none"
-                  placeholder="https://..."
-                />
+                <label className="block text-sm font-medium text-gray-700 mb-1">Product Image</label>
+                <div className="border-2 border-dashed border-gray-300 rounded-lg p-4 text-center">
+                  {imagePreview ? (
+                    <div className="relative">
+                      <img src={imagePreview} alt="Preview" className="mx-auto max-h-40 rounded" />
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setImagePreview('')
+                          setFormData(prev => ({ ...prev, imageUrl: '' }))
+                          if (fileInputRef.current) fileInputRef.current.value = ''
+                        }}
+                        className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  ) : (
+                    <div className="text-gray-400">
+                      <Camera size={40} className="mx-auto mb-2" />
+                      <p className="text-sm">Click to upload image</p>
+                    </div>
+                  )}
+                  <input
+                    ref={fileInputRef}
+                    type="file"
+                    accept="image/*"
+                    onChange={handleImageSelect}
+                    className="hidden"
+                    id="image-upload"
+                  />
+                  <label
+                    htmlFor="image-upload"
+                    className={`mt-3 inline-flex items-center space-x-2 px-4 py-2 bg-green-600 text-white rounded-lg cursor-pointer hover:bg-green-700 ${uploadingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
+                  >
+                    {uploadingImage ? (
+                      <Loader2 size={16} className="animate-spin" />
+                    ) : (
+                      <Upload size={16} />
+                    )}
+                    <span>{uploadingImage ? 'Uploading...' : 'Choose Image'}</span>
+                  </label>
+                </div>
               </div>
               <div className="flex space-x-3 pt-4">
                 <button

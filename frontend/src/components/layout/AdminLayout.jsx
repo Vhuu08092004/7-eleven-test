@@ -17,7 +17,9 @@ export default function AdminLayout() {
         <div className="max-w-7xl mx-auto px-4">
           <div className="flex justify-between h-16">
             <div className="flex items-center space-x-8">
-              <h1 className="text-xl font-bold">7-Eleven Admin</h1>
+              <Link to="/admin/products">
+                <img src="/711-logo.png" alt="7-Eleven Logo" className="h-10 w-auto" />
+              </Link>
               <div className="flex space-x-4">
                 <Link to="/admin/products" className="flex items-center space-x-2 px-3 py-2 rounded hover:bg-green-700">
                   <Package size={18} />

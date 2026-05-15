@@ -45,6 +45,8 @@ services:
       CACHE_TYPE: simple
     ports:
       - "8080:8080"
+    volumes:
+      - ./backend/uploads:/app/uploads
     depends_on:
       postgres:
         condition: service_healthy

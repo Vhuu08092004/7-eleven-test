@@ -1,7 +1,8 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useCallback } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
-import { productService, orderService } from '../../services'
+import { productService, orderService, cartService } from '../../services'
+import { getImageUrl } from '../../utils'
 import { Search, Loader2, ShoppingCart, Minus, Plus, Image } from 'lucide-react'
 
 export default function ProductList() {
@@ -10,8 +11,22 @@ export default function ProductList() {
   const [search, setSearch] = useState('')
   const [page, setPage] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
-  const [cart, setCart] = useState({})
+  const [cartData, setCartData] = useState({ items: [], totalItems: 0 })
   const [ordering, setOrdering] = useState(false)
+  const [addingToCart, setAddingToCart] = useState(null)
+
+  const fetchCart = useCallback(async () => {
+    try {
+      const res = await cartService.getCart()
+      setCartData(res.data.data)
+    } catch (error) {
+      // User might not be logged in, silently ignore
+    }
+  }, [])
+
+  useEffect(() => {
+    fetchCart()
+  }, [fetchCart])
 
   const fetchProducts = async () => {
     try {
@@ -36,52 +51,43 @@ export default function ProductList() {
     fetchProducts()
   }
 
-  const addToCart = (product) => {
-    setCart(prev => ({
-      ...prev,
-      [product.id]: { ...product, quantity: (prev[product.id]?.quantity || 0) + 1 }
-    }))
-    toast.success(`Added ${product.name} to cart`)
-  }
-
-  const updateQuantity = (productId, delta) => {
-    setCart(prev => {
-      const current = prev[productId]
-      if (!current) return prev
-      const newQty = current.quantity + delta
-      if (newQty <= 0) {
-        const { [productId]: _, ...rest } = prev
-        return rest
-      }
-      return { ...prev, [productId]: { ...current, quantity: newQty } }
-    })
-  }
-
-  const getCartTotal = () => {
-    return Object.values(cart).reduce((sum, item) => sum + (item.price * item.quantity), 0)
-  }
-
-  const getCartCount = () => {
-    return Object.values(cart).reduce((sum, item) => sum + item.quantity, 0)
+  const addToCart = async (product) => {
+    setAddingToCart(product.id)
+    try {
+      const res = await cartService.addToCart(product.id, 1)
+      setCartData(res.data.data)
+      toast.success(`Added "${product.name}" to cart`, {
+        description: 'Go to cart to checkout',
+        action: {
+          label: 'View Cart',
+          onClick: () => window.location.href = '/cart'
+        }
+      })
+    } catch (error) {
+      toast.error(error.response?.data?.message || 'Failed to add to cart')
+    } finally {
+      setAddingToCart(null)
+    }
   }
 
   const placeOrder = async () => {
-    if (Object.keys(cart).length === 0) {
-      toast.error('Cart is empty')
+    if (cartData.items.length === 0) {
+      toast.error('Your cart is empty')
       return
     }
 
     setOrdering(true)
     try {
-      const orderData = {
-        items: Object.values(cart).map(item => ({
-          productId: item.id,
-          quantity: item.quantity
-        }))
-      }
-      await orderService.create(orderData)
-      setCart({})
-      toast.success('Order placed successfully!')
+      // Lock & stock check happens here at order creation
+      await orderService.placeOrderFromCart()
+      setCartData({ items: [], totalItems: 0, totalPrice: 0 })
+      toast.success('Order placed successfully!', {
+        description: 'Thank you for your purchase',
+        action: {
+          label: 'View Orders',
+          onClick: () => window.location.href = '/orders'
+        }
+      })
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to place order')
     } finally {
@@ -91,6 +97,10 @@ export default function ProductList() {
 
   const formatPrice = (price) => {
     return new Intl.NumberFormat('vi-VN', { style: 'currency', currency: 'VND' }).format(price)
+  }
+
+  const getCartTotal = () => {
+    return cartData.items.reduce((sum, item) => sum + (item.productPrice * item.quantity), 0)
   }
 
   return (
@@ -104,9 +114,9 @@ export default function ProductList() {
           >
             <ShoppingCart size={20} />
             <span>Cart</span>
-            {getCartCount() > 0 && (
+            {cartData.totalItems > 0 && (
               <span className="absolute -top-2 -right-2 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center">
-                {getCartCount()}
+                {cartData.totalItems}
               </span>
             )}
           </Link>
@@ -137,7 +147,7 @@ export default function ProductList() {
               {products.map((product) => (
                 <div key={product.id} className="bg-white rounded-lg shadow overflow-hidden">
                   {product.imageUrl ? (
-                    <img src={product.imageUrl} alt={product.name} className="w-full h-40 object-cover" />
+                    <img src={getImageUrl(product.imageUrl)} alt={product.name} className="w-full h-40 object-cover" />
                   ) : (
                     <div className="w-full h-40 bg-gray-100 flex items-center justify-center">
                       <Image className="text-gray-400" size={48} />
@@ -151,9 +161,15 @@ export default function ProductList() {
                       {product.stock > 0 ? (
                         <button
                           onClick={() => addToCart(product)}
-                          className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700"
+                          disabled={addingToCart === product.id}
+                          className="px-3 py-1 bg-green-600 text-white text-sm rounded hover:bg-green-700 disabled:opacity-50 flex items-center space-x-1"
                         >
-                          Add
+                          {addingToCart === product.id ? (
+                            <Loader2 className="animate-spin" size={14} />
+                          ) : (
+                            <Plus size={14} />
+                          )}
+                          <span>Add</span>
                         </button>
                       ) : (
                         <span className="text-sm text-red-500">Out of stock</span>
@@ -188,30 +204,15 @@ export default function ProductList() {
       </div>
 
       {/* Cart Sidebar */}
-      {Object.keys(cart).length > 0 && (
+      {cartData.items.length > 0 && (
         <div className="w-80 bg-white rounded-lg shadow p-4 h-fit sticky top-4">
-          <h2 className="text-lg font-bold mb-4">Your Cart ({getCartCount()})</h2>
+          <h2 className="text-lg font-bold mb-4">Your Cart ({cartData.totalItems})</h2>
           <div className="space-y-3 max-h-96 overflow-y-auto">
-            {Object.values(cart).map((item) => (
+            {cartData.items.map((item) => (
               <div key={item.id} className="flex justify-between items-center p-2 bg-gray-50 rounded">
                 <div className="flex-1">
-                  <p className="font-medium text-sm">{item.name}</p>
-                  <p className="text-xs text-gray-500">{formatPrice(item.price)}</p>
-                </div>
-                <div className="flex items-center space-x-1">
-                  <button
-                    onClick={() => updateQuantity(item.id, -1)}
-                    className="p-1 bg-gray-200 rounded hover:bg-gray-300"
-                  >
-                    <Minus size={14} />
-                  </button>
-                  <span className="w-8 text-center text-sm">{item.quantity}</span>
-                  <button
-                    onClick={() => updateQuantity(item.id, 1)}
-                    className="p-1 bg-gray-200 rounded hover:bg-gray-300"
-                  >
-                    <Plus size={14} />
-                  </button>
+                  <p className="font-medium text-sm">{item.productName}</p>
+                  <p className="text-xs text-gray-500">{formatPrice(item.productPrice)} x {item.quantity}</p>
                 </div>
               </div>
             ))}

@@ -1,6 +1,7 @@
 package com.seveneleven.service.product;
 
 import com.seveneleven.dto.PageResponse;
+import com.seveneleven.dto.product.ProductPublicResponse;
 import com.seveneleven.dto.product.ProductRequest;
 import com.seveneleven.dto.product.ProductResponse;
 import com.seveneleven.entity.Product;
@@ -27,6 +28,42 @@ import java.util.stream.Collectors;
 public class ProductService {
 
     private final ProductRepository productRepository;
+
+    @Cacheable(value = "products", key = "#page + '-' + #size + '-' + #keyword")
+    @Transactional(readOnly = true)
+    public PageResponse<ProductPublicResponse> getProductsPublic(int page, int size, String keyword) {
+        log.debug("Fetching public products - page: {}, size: {}, keyword: {}", page, size, keyword);
+
+        Pageable pageable = PageRequest.of(page, size, Sort.by("createdAt").descending());
+        Page<Product> productPage;
+
+        if (keyword != null && !keyword.isBlank()) {
+            productPage = productRepository.searchByKeyword(keyword.trim(), pageable);
+        } else {
+            productPage = productRepository.findByIsDeletedFalse(pageable);
+        }
+
+        List<ProductPublicResponse> content = productPage.getContent().stream()
+                .map(ProductPublicResponse::fromEntity)
+                .collect(Collectors.toList());
+
+        return PageResponse.<ProductPublicResponse>builder()
+                .content(content)
+                .page(productPage.getNumber())
+                .size(productPage.getSize())
+                .totalElements(productPage.getTotalElements())
+                .totalPages(productPage.getTotalPages())
+                .first(productPage.isFirst())
+                .last(productPage.isLast())
+                .build();
+    }
+
+    @Transactional(readOnly = true)
+    public ProductPublicResponse getProductByIdPublic(Long id) {
+        Product product = productRepository.findByIdAndIsDeletedFalse(id)
+                .orElseThrow(() -> new ResourceNotFoundException("Product", id));
+        return ProductPublicResponse.fromEntity(product);
+    }
 
     @Cacheable(value = "products", key = "#page + '-' + #size + '-' + #keyword")
     @Transactional(readOnly = true)
