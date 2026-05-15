@@ -1,5 +1,4 @@
-# Render Blueprint - Backend only
-# PostgreSQL đã deploy sẵn
+# Render Blueprint - Backend với PostgreSQL + Redis
 
 services:
   # ========================
@@ -15,30 +14,37 @@ services:
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: prod
-      # Database - dùng JDBC URL trực tiếp
-      - key: SPRING_DATASOURCE_URL
-        value: "jdbc:postgresql://dpg-d83djhbeo5us73b5evt0-a:5432/seveneleven"
-      - key: SPRING_DATASOURCE_USERNAME
+      # PostgreSQL
+      - key: DB_HOST
+        value: "dpg-d83djhbeo5us73b5evt0-a"
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_NAME
+        value: "seveneleven"
+      - key: DB_USERNAME
         value: "seveneleven_user"
-      - key: SPRING_DATASOURCE_PASSWORD
+      - key: DB_PASSWORD
         value: "rC4cRPbjsin6kvFg1WrZq5kwt5RDp8pG"
-      # Redis disabled
+      # Redis
+      - key: REDIS_HOST
+        value: "red-d83ejaf7f7vs739254p0"
+      - key: REDIS_PORT
+        value: "6379"
+      - key: REDIS_PASSWORD
+        value: ""
       - key: REDIS_ENABLED
-        value: "false"
+        value: "true"
       - key: CACHE_TYPE
-        value: simple
+        value: "redis"
       # JWT Secret
       - key: JWT_SECRET
         generateValue: true
-      # CORS
+      # CORS - Vercel frontend
       - key: CORS_ORIGINS
         value: "https://7-eleven-test.vercel.app,http://localhost:5173"
       # Upload path
       - key: UPLOAD_PATH
         value: "/app/uploads"
-      # Disable Flyway tạm thời nếu cần
-      # - key: SPRING_FLYWAY_ENABLED
-      #   value: "false"
     disk:
       name: uploads
       mountPath: /app/uploads
