@@ -1,0 +1,98 @@
+# Render Blueprint - Auto-deploy entire stack
+# Docs: https://render.com/docs/blueprint-spec
+
+services:
+  # ========================
+  # POSTGRESQL DATABASE
+  # ========================
+  - type: psql
+    name: seven-eleven-db
+    plan: free
+    databaseName: seveneleven
+    ipAllowList: []
+
+  # ========================
+  # REDIS CACHE (Optional)
+  # ========================
+  # Uncomment nếu muốn dùng Redis
+  # - type: redis
+  #   name: seven-eleven-redis
+  #   plan: free
+  #   ipAllowList: []
+
+  # ========================
+  # BACKEND API
+  # ========================
+  - type: web
+    name: seven-eleven-api
+    env: docker
+    dockerfilePath: ./backend/Dockerfile
+    plan: free
+    region: singapore
+    healthCheckPath: /actuator/health
+    envVars:
+      - key: SPRING_PROFILES_ACTIVE
+        value: prod
+      # Database - lấy từ PostgreSQL service bên trên
+      - key: DB_HOST
+        fromDatabase:
+          name: seven-eleven-db
+          property: host
+      - key: DB_PORT
+        value: "5432"
+      - key: DB_NAME
+        value: seveneleven
+      - key: DB_USERNAME
+        fromDatabase:
+          name: seven-eleven-db
+          property: username
+      - key: DB_PASSWORD
+        fromDatabase:
+          name: seven-eleven-db
+          property: password
+      # Redis - disable vì free tier có 1 connection limit
+      - key: REDIS_ENABLED
+        value: "false"
+      - key: CACHE_TYPE
+        value: simple
+      # JWT Secret - THAY ĐỔI GIÁ TRỊ NÀY!
+      - key: JWT_SECRET
+        generateValue: true
+      # CORS Origins
+      - key: CORS_ORIGINS
+        value: "*"
+      # Upload path for Render disk mount
+      - key: UPLOAD_PATH
+        value: "/app/uploads"
+      # Disk cho uploads
+    disk:
+      name: uploads
+      mountPath: /app/uploads
+      sizeGB: 1
+    routes:
+      - path: /api
+        name: seven-eleven-api
+        rewrite: /
+      - path: /uploads
+        name: seven-eleven-api
+        rewrite: /uploads
+      - path: /swagger-ui
+        name: seven-eleven-api
+        rewrite: /swagger-ui
+      - path: /api-docs
+        name: seven-eleven-api
+        rewrite: /api-docs
+
+  # ========================
+  # FRONTEND (nếu muốn host trên Render)
+  # ========================
+  # Uncomment nếu muốn host frontend trên Render thay vì Netlify/Vercel
+  # - type: web
+  #   name: seven-eleven-frontend
+  #   env: docker
+  #   dockerfilePath: ./frontend/Dockerfile
+  #   plan: free
+  #   region: singapore
+  #   envVars:
+  #     - key: VITE_API_URL
+  #       value: https://seven-eleven-api.onrender.com

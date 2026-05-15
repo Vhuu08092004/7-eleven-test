@@ -16,8 +16,12 @@ FROM eclipse-temurin:21-jre-alpine
 
 WORKDIR /app
 
+# Create uploads directory
+RUN mkdir -p /app/uploads
+
 COPY --from=builder /app/target/*.jar app.jar
 
 EXPOSE 8080
 
-ENTRYPOINT ["java", "-jar", "app.jar"]
+# UPLOAD_PATH: /app/uploads (Render disk mount), uploads (local dev)
+ENTRYPOINT ["sh", "-c", "java -jar app.jar -Dupload.path=${UPLOAD_PATH:-/app/uploads}"]
