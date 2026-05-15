@@ -20,19 +20,15 @@ export default function ProductManagement() {
     price: '',
     stock: '',
     imageUrl: '',
-    imageFileKey: ''      // temp file key — only set for newly uploaded images
+    imageFileKey: ''
   })
   const [imagePreview, setImagePreview] = useState('')
   const [uploadingImage, setUploadingImage] = useState(false)
-  const [imageExpiresAt, setImageExpiresAt] = useState(null)
-  const [expirationCountdown, setExpirationCountdown] = useState(null)
   const fileInputRef = useRef(null)
   const [saving, setSaving] = useState(false)
   const [deleteId, setDeleteId] = useState(null)
 
-  // Track pending temp file key so we can clean up if user closes modal without saving
   const pendingTempKeyRef = useRef(null)
-  const countdownTimerRef = useRef(null)
 
   const fetchProducts = async () => {
     try {
@@ -51,45 +47,9 @@ export default function ProductManagement() {
     fetchProducts()
   }, [page, search])
 
-  // Countdown timer for image expiration warning
-  useEffect(() => {
-    if (!imageExpiresAt) {
-      setExpirationCountdown(null)
-      if (countdownTimerRef.current) {
-        clearInterval(countdownTimerRef.current)
-        countdownTimerRef.current = null
-      }
-      return
-    }
-
-    const updateCountdown = () => {
-      const remaining = Math.max(0, Math.floor((new Date(imageExpiresAt) - Date.now()) / 1000))
-      setExpirationCountdown(remaining)
-      if (remaining === 0) {
-        // Expired — clear the temp image from form
-        setImagePreview('')
-        setFormData(prev => ({ ...prev, imageUrl: '', imageFileKey: '' }))
-        setImageExpiresAt(null)
-        pendingTempKeyRef.current = null
-        toast.warning('Temporary image expired. Please upload a new image.')
-        if (countdownTimerRef.current) {
-          clearInterval(countdownTimerRef.current)
-          countdownTimerRef.current = null
-        }
-      }
-    }
-
-    updateCountdown()
-    countdownTimerRef.current = setInterval(updateCountdown, 1000)
-    return () => {
-      if (countdownTimerRef.current) clearInterval(countdownTimerRef.current)
-    }
-  }, [imageExpiresAt])
-
   // Clean up pending temp file when modal closes without saving
   const closeModal = async () => {
     if (pendingTempKeyRef.current) {
-      // Fire-and-forget delete — don't block UI
       fetch(`${API_URL}/api/uploads/temp/${pendingTempKeyRef.current}`, {
         method: 'DELETE',
         headers: {
@@ -97,10 +57,6 @@ export default function ProductManagement() {
         }
       }).catch(() => {})
       pendingTempKeyRef.current = null
-    }
-    if (countdownTimerRef.current) {
-      clearInterval(countdownTimerRef.current)
-      countdownTimerRef.current = null
     }
     setModalOpen(false)
   }
@@ -133,14 +89,10 @@ export default function ProductManagement() {
         imageFileKey: ''       // existing images have no temp key
       })
       setImagePreview(getImageUrl(product.imageUrl || ''))
-      setImageExpiresAt(null)
-      setExpirationCountdown(null)
     } else {
       setEditingProduct(null)
       setFormData({ name: '', description: '', price: '', stock: '', imageUrl: '', imageFileKey: '' })
       setImagePreview('')
-      setImageExpiresAt(null)
-      setExpirationCountdown(null)
     }
     pendingTempKeyRef.current = null
     setModalOpen(true)
@@ -150,7 +102,6 @@ export default function ProductManagement() {
     const file = e.target.files?.[0]
     if (!file) return
 
-    // Delete previous pending temp file if any
     if (pendingTempKeyRef.current) {
       await fetch(`${API_URL}/api/uploads/temp/${pendingTempKeyRef.current}`, {
         method: 'DELETE',
@@ -158,8 +109,6 @@ export default function ProductManagement() {
       }).catch(() => {})
       pendingTempKeyRef.current = null
     }
-    setImageExpiresAt(null)
-    setExpirationCountdown(null)
 
     setUploadingImage(true)
     const formDataUpload = new FormData()
@@ -175,16 +124,13 @@ export default function ProductManagement() {
       })
       const result = await response.json()
       if (result.success) {
-        const { fileKey, filename, expiresAt } = result.data
+        const { fileKey, filename } = result.data
 
-        // Store temp file key — this is what gets sent to backend on save
         setFormData(prev => ({ ...prev, imageUrl: filename, imageFileKey: fileKey }))
-        // Show local preview from the temp file
         setImagePreview(`${API_URL}/uploads/temp/${filename}`)
-        setImageExpiresAt(expiresAt)
         pendingTempKeyRef.current = fileKey
 
-        toast.success('Image uploaded (temporary — saves with product)')
+        toast.success('Image uploaded successfully')
       } else {
         toast.error(result.message || 'Failed to upload image')
       }
@@ -467,24 +413,17 @@ export default function ProductManagement() {
                         onClick={() => {
                           setImagePreview('')
                           setFormData(prev => ({ ...prev, imageUrl: '', imageFileKey: '' }))
-                          setImageExpiresAt(null)
                           if (fileInputRef.current) fileInputRef.current.value = ''
                         }}
                         className="absolute top-0 right-0 bg-red-500 text-white rounded-full p-1 hover:bg-red-600"
                       >
                         <X size={14} />
                       </button>
-                      {expirationCountdown !== null && (
-                        <p className={`text-xs mt-1 ${expirationCountdown < 60 ? 'text-red-500 font-medium' : 'text-gray-400'}`}>
-                          Saves with product • Expires in {Math.floor(expirationCountdown / 60)}:{String(expirationCountdown % 60).padStart(2, '0')}
-                        </p>
-                      )}
                     </div>
                   ) : (
                     <div className="text-gray-400">
                       <Camera size={40} className="mx-auto mb-2" />
                       <p className="text-sm">Click to upload image</p>
-                      <p className="text-xs mt-1">Auto-deleted after 5 min if not saved</p>
                     </div>
                   )}
                   <input

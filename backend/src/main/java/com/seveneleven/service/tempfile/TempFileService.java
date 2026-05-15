@@ -106,7 +106,7 @@ public class TempFileService {
     @Transactional(readOnly = true)
     public TempFileMetadata getTempFileOrThrow(String fileKey) {
         return getTempFile(fileKey)
-                .orElseThrow(() -> new ResourceNotFoundException("TempFile", "fileKey", fileKey));
+                .orElseThrow(() -> new ResourceNotFoundException("Temp file not found: " + fileKey));
     }
 
     /**
