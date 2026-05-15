@@ -1,40 +1,62 @@
-databases:
-  - name: seven-eleven-db
-    databaseName: seveneleven
-    plan: free
+# Render Blueprint - Auto-deploy entire stack
+# Docs: https://render.com/docs/blueprint-spec
 
 services:
+  # ========================
+  # POSTGRESQL DATABASE
+  # ========================
+  - type: psql
+    name: seven-eleven-db
+    plan: free
+    databaseName: seveneleven
+    ipAllowList: []
+
+  # ========================
+  # BACKEND API
+  # ========================
   - type: web
     name: seven-eleven-api
     env: docker
     dockerfilePath: ./backend/Dockerfile
     plan: free
-
+    region: singapore
+    healthCheckPath: /actuator/health
     envVars:
       - key: SPRING_PROFILES_ACTIVE
         value: prod
-
+      # Database - lấy từ PostgreSQL service bên trên
       - key: DB_HOST
         fromDatabase:
           name: seven-eleven-db
           property: host
-
       - key: DB_PORT
-        fromDatabase:
-          name: seven-eleven-db
-          property: port
-
+        value: "5432"
       - key: DB_NAME
-        fromDatabase:
-          name: seven-eleven-db
-          property: database
-
+        value: seveneleven
       - key: DB_USERNAME
         fromDatabase:
           name: seven-eleven-db
-          property: user
-
+          property: username
       - key: DB_PASSWORD
         fromDatabase:
           name: seven-eleven-db
           property: password
+      # Redis - disable vì free tier có 1 connection limit
+      - key: REDIS_ENABLED
+        value: "false"
+      - key: CACHE_TYPE
+        value: simple
+      # JWT Secret
+      - key: JWT_SECRET
+        generateValue: true
+      # CORS Origins - Update sau khi deploy frontend
+      - key: CORS_ORIGINS
+        value: "*"
+      # Upload path for Render disk mount
+      - key: UPLOAD_PATH
+        value: "/app/uploads"
+    # Mount disk cho uploads
+    disk:
+      name: uploads
+      mountPath: /app/uploads
+      sizeGB: 1

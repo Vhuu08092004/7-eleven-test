@@ -3,13 +3,11 @@ FROM maven:3.9-eclipse-temurin-21-alpine AS builder
 
 WORKDIR /app
 
-COPY pom.xml .
+# Copy from backend folder (Dockerfile is in backend/, build context is root)
+COPY backend/pom.xml .
+COPY backend/src ./src
 
-RUN mvn dependency:go-offline -B
-
-COPY src ./src
-
-RUN mvn clean package -Dmaven.test.skip=true
+RUN mvn clean package -DskipTests
 
 # Stage 2: Runtime
 FROM eclipse-temurin:21-jre-alpine
@@ -23,5 +21,5 @@ COPY --from=builder /app/target/*.jar app.jar
 
 EXPOSE 8080
 
-# UPLOAD_PATH: /app/uploads (Render disk mount), uploads (local dev)
+# UPLOAD_PATH: /app/uploads (Render disk mount)
 ENTRYPOINT ["sh", "-c", "java -jar app.jar -Dupload.path=${UPLOAD_PATH:-/app/uploads}"]
