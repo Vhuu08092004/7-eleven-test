@@ -1,6 +1,7 @@
 package com.seveneleven.exception;
 
 import com.seveneleven.dto.BaseResponse;
+import jakarta.servlet.http.HttpServletResponse;
 import jakarta.validation.ConstraintViolationException;
 import lombok.extern.slf4j.Slf4j;
 import org.slf4j.MDC;
@@ -21,77 +22,100 @@ import java.util.Map;
 @RestControllerAdvice
 public class GlobalExceptionHandler {
 
+    private String getTraceId() {
+        String traceId = MDC.get("traceId");
+        return traceId != null ? traceId : "N/A";
+    }
+
+    private <T> BaseResponse<T> errorResponse(String message) {
+        return BaseResponse.<T>builder()
+                .success(false)
+                .message(message)
+                .traceId(getTraceId())
+                .build();
+    }
+
     @ExceptionHandler(ResourceNotFoundException.class)
-    public ResponseEntity<BaseResponse<Void>> handleResourceNotFound(ResourceNotFoundException ex) {
-        log.error("Resource not found: {}", ex.getMessage());
+    public ResponseEntity<BaseResponse<Void>> handleResourceNotFound(ResourceNotFoundException ex, HttpServletResponse response) {
+        log.error("[{}] Resource not found: {}", getTraceId(), ex.getMessage());
+        response.setHeader("X-Trace-Id", getTraceId());
         return ResponseEntity.status(HttpStatus.NOT_FOUND)
-                .body(BaseResponse.error(ex.getMessage()));
+                .body(errorResponse(ex.getMessage()));
     }
 
     @ExceptionHandler(BadRequestException.class)
-    public ResponseEntity<BaseResponse<Void>> handleBadRequest(BadRequestException ex) {
-        log.error("Bad request: {}", ex.getMessage());
+    public ResponseEntity<BaseResponse<Void>> handleBadRequest(BadRequestException ex, HttpServletResponse response) {
+        log.error("[{}] Bad request: {}", getTraceId(), ex.getMessage());
+        response.setHeader("X-Trace-Id", getTraceId());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(BaseResponse.error(ex.getMessage()));
+                .body(errorResponse(ex.getMessage()));
     }
 
     @ExceptionHandler(UnauthorizedException.class)
-    public ResponseEntity<BaseResponse<Void>> handleUnauthorized(UnauthorizedException ex) {
-        log.error("Unauthorized: {}", ex.getMessage());
+    public ResponseEntity<BaseResponse<Void>> handleUnauthorized(UnauthorizedException ex, HttpServletResponse response) {
+        log.error("[{}] Unauthorized: {}", getTraceId(), ex.getMessage());
+        response.setHeader("X-Trace-Id", getTraceId());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(BaseResponse.error(ex.getMessage()));
+                .body(errorResponse(ex.getMessage()));
     }
 
     @ExceptionHandler(BadCredentialsException.class)
-    public ResponseEntity<BaseResponse<Void>> handleBadCredentials(BadCredentialsException ex) {
-        log.error("Bad credentials: {}", ex.getMessage());
+    public ResponseEntity<BaseResponse<Void>> handleBadCredentials(BadCredentialsException ex, HttpServletResponse response) {
+        log.error("[{}] Bad credentials: {}", getTraceId(), ex.getMessage());
+        response.setHeader("X-Trace-Id", getTraceId());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(BaseResponse.error("Invalid email or password"));
+                .body(errorResponse("Invalid email or password"));
     }
 
     @ExceptionHandler(AuthenticationException.class)
-    public ResponseEntity<BaseResponse<Void>> handleAuthentication(AuthenticationException ex) {
-        log.error("Authentication failed: {}", ex.getMessage());
+    public ResponseEntity<BaseResponse<Void>> handleAuthentication(AuthenticationException ex, HttpServletResponse response) {
+        log.error("[{}] Authentication failed: {}", getTraceId(), ex.getMessage());
+        response.setHeader("X-Trace-Id", getTraceId());
         return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
-                .body(BaseResponse.error("Authentication failed"));
+                .body(errorResponse("Authentication failed"));
     }
 
     @ExceptionHandler(AccessDeniedException.class)
-    public ResponseEntity<BaseResponse<Void>> handleAccessDenied(AccessDeniedException ex) {
-        log.error("Access denied: {}", ex.getMessage());
+    public ResponseEntity<BaseResponse<Void>> handleAccessDenied(AccessDeniedException ex, HttpServletResponse response) {
+        log.error("[{}] Access denied: {}", getTraceId(), ex.getMessage());
+        response.setHeader("X-Trace-Id", getTraceId());
         return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                .body(BaseResponse.error("Access denied"));
+                .body(errorResponse("Access denied"));
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
-    public ResponseEntity<BaseResponse<Map<String, String>>> handleValidation(MethodArgumentNotValidException ex) {
+    public ResponseEntity<BaseResponse<Map<String, String>>> handleValidation(MethodArgumentNotValidException ex, HttpServletResponse response) {
         Map<String, String> errors = new HashMap<>();
         ex.getBindingResult().getAllErrors().forEach(error -> {
             String fieldName = ((FieldError) error).getField();
             String errorMessage = error.getDefaultMessage();
             errors.put(fieldName, errorMessage);
         });
-        log.error("Validation error: {}", errors);
-        BaseResponse<Map<String, String>> response = BaseResponse.<Map<String, String>>builder()
+        log.error("[{}] Validation error: {}", getTraceId(), errors);
+        response.setHeader("X-Trace-Id", getTraceId());
+        BaseResponse<Map<String, String>> responseEntity = BaseResponse.<Map<String, String>>builder()
                 .success(false)
                 .message("Validation failed")
-                .traceId(MDC.get("traceId"))
+                .traceId(getTraceId())
                 .data(errors)
                 .build();
-        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(response);
+        return ResponseEntity.status(HttpStatus.BAD_REQUEST).body(responseEntity);
     }
 
     @ExceptionHandler(ConstraintViolationException.class)
-    public ResponseEntity<BaseResponse<Void>> handleConstraintViolation(ConstraintViolationException ex) {
-        log.error("Constraint violation: {}", ex.getMessage());
+    public ResponseEntity<BaseResponse<Void>> handleConstraintViolation(ConstraintViolationException ex, HttpServletResponse response) {
+        log.error("[{}] Constraint violation: {}", getTraceId(), ex.getMessage());
+        response.setHeader("X-Trace-Id", getTraceId());
         return ResponseEntity.status(HttpStatus.BAD_REQUEST)
-                .body(BaseResponse.error(ex.getMessage()));
+                .body(errorResponse(ex.getMessage()));
     }
 
     @ExceptionHandler(Exception.class)
-    public ResponseEntity<BaseResponse<Void>> handleGeneral(Exception ex) {
-        log.error("Unexpected error: ", ex);
+    public ResponseEntity<BaseResponse<Void>> handleGeneral(Exception ex, HttpServletResponse response) {
+        String traceId = getTraceId();
+        log.error("[{}] Unexpected error: ", traceId, ex);
+        response.setHeader("X-Trace-Id", traceId);
         return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
-                .body(BaseResponse.error("An unexpected error occurred"));
+                .body(errorResponse("An unexpected error occurred. Reference: " + traceId));
     }
 }

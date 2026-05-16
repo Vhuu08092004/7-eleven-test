@@ -45,13 +45,26 @@ public class CartService {
                 .orElseThrow(() -> new ResourceNotFoundException("Product", request.getProductId()));
 
         // Check if item already in cart
-        var existingCart = cartRepository.findByUserIdAndProductIdWithProduct(user.getId(), product.getId());
+        var existingCart = cartRepository.findByUserIdAndProductIdAndIsDeletedFalse(user.getId(), product.getId());
+
+        int totalRequestedQuantity;
+        if (existingCart.isPresent()) {
+            Cart cart = existingCart.get();
+            totalRequestedQuantity = cart.getQuantity() + request.getQuantity();
+        } else {
+            totalRequestedQuantity = request.getQuantity();
+        }
+
+        // Validate stock availability
+        if (product.getStock() < totalRequestedQuantity) {
+            throw new BadRequestException(
+                    String.format("Insufficient stock for product '%s'. Available: %d, Requested: %d",
+                            product.getName(), product.getStock(), totalRequestedQuantity));
+        }
 
         if (existingCart.isPresent()) {
             Cart cart = existingCart.get();
             int newQuantity = cart.getQuantity() + request.getQuantity();
-
-            // Note: we don't check stock here, only at place order time
             cart.setQuantity(newQuantity);
             cartRepository.save(cart);
             log.info("User {} updated cart: product {} quantity to {}", email, product.getId(), newQuantity);
@@ -84,6 +97,13 @@ public class CartService {
             cartRepository.delete(cart);
             log.info("User {} removed cart item {} (quantity set to 0)", email, cartItemId);
         } else {
+            // Validate stock availability for new quantity
+            Product product = cart.getProduct();
+            if (product.getStock() < request.getQuantity()) {
+                throw new BadRequestException(
+                        String.format("Insufficient stock for product '%s'. Available: %d, Requested: %d",
+                                product.getName(), product.getStock(), request.getQuantity()));
+            }
             cart.setQuantity(request.getQuantity());
             cartRepository.save(cart);
             log.info("User {} updated cart item {}: quantity to {}", email, cartItemId, request.getQuantity());

@@ -104,7 +104,7 @@ public class ProductService {
         return ProductResponse.fromEntity(product);
     }
 
-    @CacheEvict(value = {"products", "product"}, allEntries = true)
+    @CacheEvict(value = {"products", "product"}, allEntries = false)
     @Transactional
     public ProductResponse createProduct(ProductRequest request) {
         String imageUrl = resolveImageUrl(request);
@@ -122,7 +122,7 @@ public class ProductService {
         return ProductResponse.fromEntity(saved);
     }
 
-    @CacheEvict(value = {"products", "product"}, allEntries = true)
+    @CacheEvict(value = {"products", "product"}, allEntries = false)
     @Transactional
     public ProductResponse updateProduct(Long id, ProductRequest request) {
         Product product = productRepository.findByIdAndIsDeletedFalse(id)
@@ -166,7 +166,7 @@ public class ProductService {
         return filename.substring(dotIndex);
     }
 
-    @CacheEvict(value = {"products", "product"}, allEntries = true)
+    @CacheEvict(value = {"products", "product"}, allEntries = false)
     @Transactional
     public void deleteProduct(Long id) {
         Product product = productRepository.findByIdAndIsDeletedFalse(id)
