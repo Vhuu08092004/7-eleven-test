@@ -94,6 +94,7 @@ public class CartService {
         }
 
         if (request.getQuantity() <= 0) {
+            // Hard delete cart item
             cartRepository.delete(cart);
             log.info("User {} removed cart item {} (quantity set to 0)", email, cartItemId);
         } else {
@@ -137,6 +138,7 @@ public class CartService {
 
         List<Cart> carts = cartRepository.findByUserIdWithProduct(user.getId());
 
+        // Hard delete all cart items
         cartRepository.deleteAll(carts);
 
         log.info("User {} cleared cart ({} items)", email, carts.size());

@@ -196,9 +196,8 @@ public class OrderService {
             orderItems.add(orderItemRepository.save(orderItem));
             totalPrice = totalPrice.add(product.getPrice().multiply(BigDecimal.valueOf(cartItem.getQuantity())));
 
-            // Soft delete cart item
-            cartItem.setIsDeleted(true);
-            cartRepository.save(cartItem);
+            // Hard delete cart item
+            cartRepository.delete(cartItem);
         }
 
         savedOrder.setTotalPrice(totalPrice);
