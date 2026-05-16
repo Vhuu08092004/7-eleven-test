@@ -1,9 +1,10 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { cartService, orderService } from '../../services'
 import { getImageUrl } from '../../utils'
 import { Loader2, Minus, Plus, Trash2, ShoppingBag } from 'lucide-react'
+import { useDebounce } from '../../hooks/useDebounce'
 
 export default function ShoppingCart() {
   const [cartData, setCartData] = useState({ items: [], totalItems: 0, totalPrice: 0 })
@@ -11,6 +12,9 @@ export default function ShoppingCart() {
   const [ordering, setOrdering] = useState(false)
   const [updating, setUpdating] = useState(null)
   const navigate = useNavigate()
+
+  // Store pending quantity updates for debouncing
+  const pendingUpdates = useRef({})
 
   const fetchCart = useCallback(async () => {
     try {
@@ -28,8 +32,8 @@ export default function ShoppingCart() {
     fetchCart()
   }, [fetchCart])
 
-  const updateQuantity = async (cartItemId, productId, currentQuantity, delta) => {
-    const newQuantity = currentQuantity + delta
+  // Debounced quantity update - waits 300ms after last change before calling API
+  const debouncedUpdateQuantity = useDebounce(async (cartItemId, productId, newQuantity) => {
     if (newQuantity <= 0) {
       await removeItem(cartItemId)
       return
@@ -41,9 +45,22 @@ export default function ShoppingCart() {
       setCartData(res.data.data)
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to update quantity')
+      // Refresh cart to get correct state
+      fetchCart()
     } finally {
       setUpdating(null)
+      delete pendingUpdates.current[cartItemId]
     }
+  }, 300)
+
+  const updateQuantity = (cartItemId, productId, currentQuantity, delta) => {
+    const newQuantity = currentQuantity + delta
+    // Store the new quantity
+    pendingUpdates.current[cartItemId] = newQuantity
+    setUpdating(cartItemId)
+
+    // Trigger debounced update
+    debouncedUpdateQuantity(cartItemId, productId, newQuantity)
   }
 
   const removeItem = async (cartItemId) => {
@@ -67,11 +84,6 @@ export default function ShoppingCart() {
 
     setOrdering(true)
     try {
-      // This calls the backend which will:
-      // 1. Lock all product rows (sorted by ID to prevent deadlock)
-      // 2. Verify stock for all items
-      // 3. Deduct stock and create order
-      // 4. Clear the user's cart
       await orderService.placeOrderFromCart()
       setCartData({ items: [], totalItems: 0, totalPrice: 0 })
       toast.success('Order placed successfully!')
@@ -141,7 +153,9 @@ export default function ShoppingCart() {
                   {updating === item.id ? (
                     <Loader2 className="animate-spin text-gray-400" size={16} />
                   ) : (
-                    <span className="w-8 text-center font-medium">{item.quantity}</span>
+                    <span className="w-8 text-center font-medium">
+                      {pendingUpdates.current[item.id] || item.quantity}
+                    </span>
                   )}
                   <button
                     onClick={() => updateQuantity(item.id, item.productId, item.quantity, 1)}

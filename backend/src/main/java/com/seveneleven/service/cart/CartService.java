@@ -81,8 +81,7 @@ public class CartService {
         }
 
         if (request.getQuantity() <= 0) {
-            cart.setIsDeleted(true);
-            cartRepository.save(cart);
+            cartRepository.delete(cart);
             log.info("User {} removed cart item {} (quantity set to 0)", email, cartItemId);
         } else {
             cart.setQuantity(request.getQuantity());
@@ -105,8 +104,7 @@ public class CartService {
             throw new ResourceNotFoundException("Cart item", cartItemId);
         }
 
-        cart.setIsDeleted(true);
-        cartRepository.save(cart);
+        cartRepository.delete(cart);
         log.info("User {} removed cart item {}", email, cartItemId);
 
         return getMyCart(email);
@@ -119,10 +117,7 @@ public class CartService {
 
         List<Cart> carts = cartRepository.findByUserIdWithProduct(user.getId());
 
-        for (Cart cart : carts) {
-            cart.setIsDeleted(true);
-            cartRepository.save(cart);
-        }
+        cartRepository.deleteAll(carts);
 
         log.info("User {} cleared cart ({} items)", email, carts.size());
         return CartResponse.builder().items(List.of()).totalItems(0).totalPrice(java.math.BigDecimal.ZERO).build();

@@ -4,6 +4,7 @@ import { toast } from 'sonner'
 import { productService, orderService, cartService } from '../../services'
 import { getImageUrl } from '../../utils'
 import { Search, Loader2, ShoppingCart, Minus, Plus, Image } from 'lucide-react'
+import { useDebounce } from '../../hooks/useDebounce'
 
 export default function ProductList() {
   const [products, setProducts] = useState([])
@@ -14,6 +15,9 @@ export default function ProductList() {
   const [cartData, setCartData] = useState({ items: [], totalItems: 0 })
   const [ordering, setOrdering] = useState(false)
   const [addingToCart, setAddingToCart] = useState(null)
+
+  // Debounce search input - only fetch after user stops typing for 500ms
+  const debouncedSearch = useDebounce(search, 500)
 
   const fetchCart = useCallback(async () => {
     try {
@@ -31,7 +35,7 @@ export default function ProductList() {
   const fetchProducts = async () => {
     try {
       setLoading(true)
-      const res = await productService.getAll(page, 12, search)
+      const res = await productService.getAll(page, 12, debouncedSearch)
       setProducts(res.data.data.content)
       setTotalPages(res.data.data.totalPages)
     } catch (error) {
@@ -41,9 +45,10 @@ export default function ProductList() {
     }
   }
 
+  // Fetch products when page, search (debounced), or search input changes
   useEffect(() => {
     fetchProducts()
-  }, [page, search])
+  }, [page, debouncedSearch])
 
   const handleSearch = (e) => {
     e.preventDefault()
@@ -78,7 +83,6 @@ export default function ProductList() {
 
     setOrdering(true)
     try {
-      // Lock & stock check happens here at order creation
       await orderService.placeOrderFromCart()
       setCartData({ items: [], totalItems: 0, totalPrice: 0 })
       toast.success('Order placed successfully!', {
