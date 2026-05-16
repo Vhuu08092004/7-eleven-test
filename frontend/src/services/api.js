@@ -11,6 +11,12 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
+    // Guard against malformed URLs from unresolved Promises
+    if (typeof config.url !== 'string' || config.url.includes('[object') || config.url.includes('undefined')) {
+      console.error('[API] Invalid URL detected:', config.url)
+      throw new Error('Invalid API URL: ' + config.url)
+    }
+    console.log('[API Request]', config.method?.toUpperCase(), config.url)
     const token = localStorage.getItem('accessToken')
     if (token) {
       config.headers.Authorization = `Bearer ${token}`
@@ -24,6 +30,7 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config
+    console.error('[API Error]', error.response?.status, error.config?.url, error.response?.data)
     
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true

@@ -34,6 +34,11 @@ export default function ShoppingCart() {
 
   // Debounced quantity update - waits 300ms after last change before calling API
   const debouncedUpdateQuantity = useDebounce(async (cartItemId, productId, newQuantity) => {
+    if (!cartItemId || cartItemId === 'undefined' || cartItemId === '[object Promise]') {
+      console.error('[Cart] Invalid cartItemId:', cartItemId)
+      toast.error('Invalid cart item')
+      return
+    }
     if (newQuantity <= 0) {
       await removeItem(cartItemId)
       return
@@ -45,7 +50,6 @@ export default function ShoppingCart() {
       setCartData(res.data.data)
     } catch (error) {
       toast.error(error.response?.data?.message || 'Failed to update quantity')
-      // Refresh cart to get correct state
       fetchCart()
     } finally {
       setUpdating(null)
@@ -54,16 +58,22 @@ export default function ShoppingCart() {
   }, 300)
 
   const updateQuantity = (cartItemId, productId, currentQuantity, delta) => {
+    if (!cartItemId || cartItemId === 'undefined' || cartItemId === '[object Promise]') {
+      console.error('[Cart] updateQuantity called with invalid cartItemId:', cartItemId)
+      return
+    }
     const newQuantity = currentQuantity + delta
-    // Store the new quantity
     pendingUpdates.current[cartItemId] = newQuantity
     setUpdating(cartItemId)
 
-    // Trigger debounced update
     debouncedUpdateQuantity(cartItemId, productId, newQuantity)
   }
 
   const removeItem = async (cartItemId) => {
+    if (!cartItemId || cartItemId === 'undefined' || cartItemId === '[object Promise]') {
+      console.error('[Cart] removeItem called with invalid cartItemId:', cartItemId)
+      return
+    }
     setUpdating(cartItemId)
     try {
       const res = await cartService.removeFromCart(cartItemId)

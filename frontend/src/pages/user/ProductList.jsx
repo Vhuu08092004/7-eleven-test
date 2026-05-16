@@ -1,23 +1,21 @@
-import { useState, useEffect, useCallback } from 'react'
+import { useState, useEffect, useCallback, useRef } from 'react'
 import { Link } from 'react-router-dom'
 import { toast } from 'sonner'
 import { productService, orderService, cartService } from '../../services'
 import { getImageUrl } from '../../utils'
 import { Search, Loader2, ShoppingCart, Minus, Plus, Image } from 'lucide-react'
-import { useDebounce } from '../../hooks/useDebounce'
 
 export default function ProductList() {
   const [products, setProducts] = useState([])
   const [loading, setLoading] = useState(true)
   const [search, setSearch] = useState('')
+  const [debouncedSearch, setDebouncedSearch] = useState('')
   const [page, setPage] = useState(0)
   const [totalPages, setTotalPages] = useState(0)
   const [cartData, setCartData] = useState({ items: [], totalItems: 0 })
   const [ordering, setOrdering] = useState(false)
   const [addingToCart, setAddingToCart] = useState(null)
-
-  // Debounce search input - only fetch after user stops typing for 500ms
-  const debouncedSearch = useDebounce(search, 500)
+  const searchTimeoutRef = useRef(null)
 
   const fetchCart = useCallback(async () => {
     try {
@@ -32,6 +30,21 @@ export default function ProductList() {
     fetchCart()
   }, [fetchCart])
 
+  useEffect(() => {
+    if (searchTimeoutRef.current) {
+      clearTimeout(searchTimeoutRef.current)
+    }
+    searchTimeoutRef.current = setTimeout(() => {
+      setDebouncedSearch(search)
+      setPage(0)
+    }, 500)
+    return () => {
+      if (searchTimeoutRef.current) {
+        clearTimeout(searchTimeoutRef.current)
+      }
+    }
+  }, [search])
+
   const fetchProducts = async () => {
     try {
       setLoading(true)
@@ -45,18 +58,20 @@ export default function ProductList() {
     }
   }
 
-  // Fetch products when page, search (debounced), or search input changes
   useEffect(() => {
     fetchProducts()
   }, [page, debouncedSearch])
 
   const handleSearch = (e) => {
     e.preventDefault()
-    setPage(0)
-    fetchProducts()
   }
 
   const addToCart = async (product) => {
+    if (!product?.id || product.id === 'undefined' || product.id === '[object Promise]') {
+      console.error('[Cart] addToCart called with invalid product:', product)
+      toast.error('Invalid product')
+      return
+    }
     setAddingToCart(product.id)
     try {
       const res = await cartService.addToCart(product.id, 1)
